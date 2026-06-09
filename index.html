@@ -436,6 +436,7 @@
         <div class="metric"><span class="label">Neutral n range</span><span id="top-range" class="value">--</span></div>
         <div class="metric"><span class="label">n=max APY</span><span id="top-max-apy" class="value">--</span></div>
         <div class="metric"><span class="label">n=min APY</span><span id="top-min-apy" class="value">--</span></div>
+        <div class="metric"><span class="label">Custom n APY</span><span id="top-custom-apy" class="value">--</span></div>
       </div>
     </header>
 
@@ -486,8 +487,16 @@
               <input id="spread-price" type="number" inputmode="decimal" step="0.01" value="25.5" />
             </div>
             <div class="field">
+              <label for="custom-n">Custom n</label>
+              <input id="custom-n" type="number" inputmode="numeric" step="1" min="1" value="2000" />
+            </div>
+            <div class="field">
               <label for="expiry">Expiry</label>
               <input id="expiry" type="date" value="2026-12-31" />
+            </div>
+            <div class="field">
+              <label for="touch-date">Touch date</label>
+              <input id="touch-date" type="date" value="2026-09-19" />
             </div>
             <div class="field">
               <label for="iv">IV</label>
@@ -514,7 +523,7 @@
           <div class="summary-item"><b id="summary-width">--</b><span>Width</span></div>
           <div class="summary-item"><b id="summary-short">--</b><span>Short strike</span></div>
           <div class="summary-item"><b id="summary-days">--</b><span>Holding days</span></div>
-          <div class="summary-item"><b id="summary-touch">--</b><span>Assumed touch</span></div>
+          <div class="summary-item"><b id="summary-touch">--</b><span>Touch date</span></div>
         </section>
 
         <section class="panel">
@@ -566,6 +575,31 @@
             </div>
           </div>
         </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <h2 class="panel-title">Custom n</h2>
+          </div>
+          <div class="panel-body">
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Scenario</th>
+                    <th>V</th>
+                    <th>n range</th>
+                    <th>n</th>
+                    <th>No touch PnL</th>
+                    <th>Touch PnL</th>
+                    <th>ROI</th>
+                    <th>APY</th>
+                  </tr>
+                </thead>
+                <tbody id="custom-table"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
       </section>
     </main>
   </div>
@@ -584,7 +618,9 @@
         strikeA: 8000,
         strikeB: 8040,
         spreadPrice: 25.5,
+        customN: 2000,
         expiry: "2026-12-31",
+        touchDate: "2026-09-19",
         iv: 0.2,
         ivShock: 0.03,
         riskFreeRate: 0.05,
@@ -597,7 +633,9 @@
         strikeA: document.getElementById("strike-a"),
         strikeB: document.getElementById("strike-b"),
         spreadPrice: document.getElementById("spread-price"),
+        customN: document.getElementById("custom-n"),
         expiry: document.getElementById("expiry"),
+        touchDate: document.getElementById("touch-date"),
         iv: document.getElementById("iv"),
         ivShock: document.getElementById("iv-shock"),
         riskFreeRate: document.getElementById("risk-free-rate"),
@@ -606,12 +644,14 @@
         topRange: document.getElementById("top-range"),
         topMaxApy: document.getElementById("top-max-apy"),
         topMinApy: document.getElementById("top-min-apy"),
+        topCustomApy: document.getElementById("top-custom-apy"),
         summaryWidth: document.getElementById("summary-width"),
         summaryShort: document.getElementById("summary-short"),
         summaryDays: document.getElementById("summary-days"),
         summaryTouch: document.getElementById("summary-touch"),
         maxTable: document.getElementById("max-table"),
         minTable: document.getElementById("min-table"),
+        customTable: document.getElementById("custom-table"),
         resetDefaults: document.getElementById("reset-defaults"),
       };
 
@@ -703,6 +743,12 @@
         return parsed;
       }
 
+      function parseInteger(value, label, { min = null } = {}) {
+        const parsed = parseNumber(value, label, { min });
+        if (!Number.isInteger(parsed)) throw new Error(`${label} must be a whole number.`);
+        return parsed;
+      }
+
       function parseDateLocal(raw) {
         if (!raw) throw new Error("Expiry is required.");
         const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
@@ -725,17 +771,23 @@
         return days;
       }
 
+      function daysBetweenDates(startDate, endDate) {
+        const start = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+        const end = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
+        return Math.round((end.getTime() - start.getTime()) / MS_PER_DAY);
+      }
+
       function assumedTouchDate(expiryDate, holdingDays) {
         const remainingDays = holdingDays / 2;
         return new Date(expiryDate.getTime() - remainingDays * MS_PER_DAY);
       }
 
-      function vScenarios(input, holdingDays) {
-        if (!Number.isFinite(holdingDays) || holdingDays <= 0) {
-          throw new Error("BS V estimate requires a positive holding period.");
+      function vScenarios(input, touchRemainingDays) {
+        if (!Number.isFinite(touchRemainingDays) || touchRemainingDays <= 0) {
+          throw new Error("BS V estimate requires touch date before expiry.");
         }
         const touchSpot = shortStrikeForDebitSpread(input.spreadType, input.strikeA, input.strikeB);
-        const touchTteYears = (holdingDays / 2) / 365;
+        const touchTteYears = touchRemainingDays / 365;
         const ivs = [
           Math.max(0.0001, input.iv - input.ivShock),
           input.iv,
@@ -790,15 +842,19 @@
 
       function annualizeRoi(roi, holdingDays) {
         if (!Number.isFinite(holdingDays) || holdingDays <= 0) return null;
+        if (roi <= -1) return null;
         return Math.pow(1 + roi, 365 / holdingDays) - 1;
       }
 
       function evaluate(input, today = new Date()) {
         const expiryDate = parseDateLocal(input.expiry);
         const holdingDays = daysUntilExpiry(expiryDate, today);
+        const touchDate = input.touchDate ? parseDateLocal(input.touchDate) : assumedTouchDate(expiryDate, holdingDays);
+        const touchRemainingDays = daysBetweenDates(touchDate, expiryDate);
+        if (touchRemainingDays <= 0) throw new Error("Touch date must be before expiry.");
         const width = Math.abs(input.strikeB - input.strikeA);
         const shortStrike = shortStrikeForDebitSpread(input.spreadType, input.strikeA, input.strikeB);
-        const rows = vScenarios(input, holdingDays).map((scenario) => {
+        const rows = vScenarios(input, touchRemainingDays).map((scenario) => {
           const [nMin, nMax] = integerNRange(input, scenario.v);
           if (nMin === null || nMax === null) {
             return {
@@ -828,20 +884,26 @@
           width,
           shortStrike,
           holdingDays,
+          touchRemainingDays,
           expiryDate,
-          touchDate: assumedTouchDate(expiryDate, holdingDays),
+          touchDate,
         };
+      }
+
+      function metricsForN(input, row, n, holdingDays) {
+        if (!Number.isFinite(n) || n < 1) return { n: null, noTouchPnl: null, touchPnl: null, roi: null, apy: null };
+        const noTouchPnl = pnlNoTouch(input, n);
+        const touchPnl = pnlTouch(input, n, row.v);
+        const roiPnl = Math.max(noTouchPnl, touchPnl);
+        const roi = roiPnl / totalUpfrontCost(input, n);
+        return { n, noTouchPnl, touchPnl, roi, apy: annualizeRoi(roi, holdingDays) };
       }
 
       function rowMetrics(input, row, nField, holdingDays) {
         if (!row.feasible) return { n: null, noTouchPnl: null, touchPnl: null, roi: null, apy: null };
         const useMax = nField === "max";
         const n = useMax ? row.nMax : row.nMin;
-        const noTouchPnl = useMax ? row.noTouchPnlAtNMax : row.noTouchPnlAtNMin;
-        const touchPnl = useMax ? row.touchPnlAtNMax : row.touchPnlAtNMin;
-        const roiPnl = Math.max(noTouchPnl, touchPnl);
-        const roi = roiPnl / totalUpfrontCost(input, n);
-        return { n, noTouchPnl, touchPnl, roi, apy: annualizeRoi(roi, holdingDays) };
+        return metricsForN(input, row, n, holdingDays);
       }
 
       function readInput() {
@@ -854,7 +916,9 @@
           strikeA: parseNumber(els.strikeA.value, "Strike A"),
           strikeB: parseNumber(els.strikeB.value, "Strike B"),
           spreadPrice: parseNumber(els.spreadPrice.value, "Spread price", { min: 0 }),
+          customN: parseInteger(els.customN.value, "Custom n", { min: 1 }),
           expiry: els.expiry.value,
+          touchDate: els.touchDate.value,
           iv: parseNumber(els.iv.value, "IV", { min: 0.0001 }),
           ivShock: parseNumber(els.ivShock.value, "IV shock", { min: 0 }),
           riskFreeRate: parseNumber(els.riskFreeRate.value, "Risk-free rate"),
@@ -914,6 +978,24 @@
         }).join("");
       }
 
+      function renderCustomTable(tbody, input, rows, holdingDays) {
+        tbody.innerHTML = rows.map((row) => {
+          const metrics = metricsForN(input, row, input.customN, holdingDays);
+          return `
+            <tr>
+              <td>${row.label}</td>
+              <td>${fmtNumber(row.v, 2)}</td>
+              <td>${rangeText(row)}</td>
+              <td>${metrics.n ?? "--"}</td>
+              <td class="${pnlClass(metrics.noTouchPnl)}">${fmtMoney(metrics.noTouchPnl)}</td>
+              <td class="${pnlClass(metrics.touchPnl)}">${fmtMoney(metrics.touchPnl)}</td>
+              <td>${fmtPct(metrics.roi)}</td>
+              <td>${fmtPct(metrics.apy)}</td>
+            </tr>
+          `;
+        }).join("");
+      }
+
       function setNotice(el, messages, isError = false) {
         const filtered = Array.isArray(messages) ? messages.filter(Boolean) : [messages].filter(Boolean);
         el.textContent = filtered.join(" ");
@@ -928,10 +1010,12 @@
           const neutral = result.rows.find((row) => row.label === "neutral") || result.rows[1];
           const neutralMax = rowMetrics(input, neutral, "max", result.holdingDays);
           const neutralMin = rowMetrics(input, neutral, "min", result.holdingDays);
+          const neutralCustom = metricsForN(input, neutral, input.customN, result.holdingDays);
 
           els.topRange.textContent = neutral && neutral.feasible ? rangeText(neutral) : "none";
           els.topMaxApy.textContent = fmtPct(neutralMax.apy);
           els.topMinApy.textContent = fmtPct(neutralMin.apy);
+          els.topCustomApy.textContent = fmtPct(neutralCustom.apy);
           els.summaryWidth.textContent = fmtCompactNumber(result.width);
           els.summaryShort.textContent = fmtCompactNumber(result.shortStrike);
           els.summaryDays.textContent = fmtCompactNumber(result.holdingDays);
@@ -939,6 +1023,7 @@
 
           renderTable(els.maxTable, input, result.rows, "max", result.holdingDays);
           renderTable(els.minTable, input, result.rows, "min", result.holdingDays);
+          renderCustomTable(els.customTable, input, result.rows, result.holdingDays);
 
           const warnings = [];
           const expectedHedge = expectedHedgeSpreadType(input);
@@ -955,9 +1040,11 @@
           setNotice(els.warning, "");
           els.maxTable.innerHTML = "";
           els.minTable.innerHTML = "";
+          els.customTable.innerHTML = "";
           els.topRange.textContent = "--";
           els.topMaxApy.textContent = "--";
           els.topMinApy.textContent = "--";
+          els.topCustomApy.textContent = "--";
         }
       }
 
@@ -976,7 +1063,9 @@
         els.strikeA.value = DEFAULTS.strikeA;
         els.strikeB.value = DEFAULTS.strikeB;
         els.spreadPrice.value = DEFAULTS.spreadPrice;
+        els.customN.value = DEFAULTS.customN;
         els.expiry.value = DEFAULTS.expiry;
+        els.touchDate.value = DEFAULTS.touchDate;
         els.iv.value = DEFAULTS.iv;
         els.ivShock.value = DEFAULTS.ivShock;
         els.riskFreeRate.value = DEFAULTS.riskFreeRate;
@@ -998,7 +1087,9 @@
         els.strikeA,
         els.strikeB,
         els.spreadPrice,
+        els.customN,
         els.expiry,
+        els.touchDate,
         els.iv,
         els.ivShock,
         els.riskFreeRate,
@@ -1013,9 +1104,11 @@
         annualizeRoi,
         bsCall,
         bsPut,
+        daysBetweenDates,
         daysUntilExpiry,
         evaluate,
         integerNRange,
+        metricsForN,
         normCdf,
         parseStrikes,
         rowMetrics,
