@@ -1,0 +1,1022 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#17212f" />
+  <title>Touch Spread Hedge Calculator</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f6f7f4;
+      --panel: #ffffff;
+      --panel-soft: #f0f4f1;
+      --text: #17212f;
+      --muted: #637083;
+      --line: #d9e0d9;
+      --accent: #1f7a6b;
+      --accent-strong: #155d52;
+      --warn: #a55418;
+      --bad: #9d3030;
+      --good: #167048;
+      --shadow: 0 18px 44px rgba(23, 33, 47, 0.10);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      min-height: 100%;
+      background: var(--bg);
+    }
+
+    body {
+      margin: 0;
+      min-height: 100%;
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        linear-gradient(180deg, rgba(31, 122, 107, 0.14), rgba(246, 247, 244, 0) 270px),
+        var(--bg);
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    .app {
+      width: min(1180px, 100%);
+      margin: 0 auto;
+      padding: 18px 16px 34px;
+    }
+
+    header {
+      display: grid;
+      gap: 14px;
+      grid-template-columns: 1fr;
+      padding: 8px 0 18px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 28px;
+      line-height: 1.08;
+      letter-spacing: 0;
+    }
+
+    .subtitle {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .topline {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: stretch;
+    }
+
+    .metric {
+      flex: 1 1 142px;
+      min-width: 0;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.76);
+      box-shadow: 0 8px 22px rgba(23, 33, 47, 0.06);
+    }
+
+    .metric .label {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.25;
+    }
+
+    .metric .value {
+      display: block;
+      margin-top: 6px;
+      font-size: 22px;
+      font-weight: 760;
+      line-height: 1.05;
+      overflow-wrap: anywhere;
+    }
+
+    main {
+      display: grid;
+      grid-template-columns: minmax(310px, 390px) minmax(0, 1fr);
+      gap: 16px;
+      align-items: start;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 14px 10px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel-soft);
+    }
+
+    .panel-title {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 780;
+      letter-spacing: 0;
+    }
+
+    .panel-body {
+      padding: 14px;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .field {
+      display: grid;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .field.wide {
+      grid-column: 1 / -1;
+    }
+
+    label,
+    .control-label {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.2;
+    }
+
+    input {
+      width: 100%;
+      min-height: 42px;
+      border: 1px solid #c7d0ca;
+      border-radius: 8px;
+      padding: 9px 10px;
+      color: var(--text);
+      background: #fff;
+      outline: none;
+    }
+
+    input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(31, 122, 107, 0.16);
+    }
+
+    .segmented {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 4px;
+      min-height: 42px;
+      padding: 4px;
+      border: 1px solid #c7d0ca;
+      border-radius: 8px;
+      background: #edf2ee;
+    }
+
+    .segmented button {
+      min-width: 0;
+      border: 0;
+      border-radius: 6px;
+      color: var(--muted);
+      background: transparent;
+      font-weight: 720;
+      cursor: pointer;
+    }
+
+    .segmented button[aria-pressed="true"] {
+      color: #fff;
+      background: var(--accent);
+      box-shadow: 0 5px 14px rgba(31, 122, 107, 0.20);
+    }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 14px;
+    }
+
+    .action {
+      min-height: 42px;
+      border: 1px solid var(--accent);
+      border-radius: 8px;
+      padding: 9px 12px;
+      color: #fff;
+      background: var(--accent);
+      font-weight: 760;
+      cursor: pointer;
+    }
+
+    .action.secondary {
+      color: var(--accent-strong);
+      background: transparent;
+    }
+
+    .notice {
+      display: none;
+      margin: 0 0 12px;
+      padding: 10px 12px;
+      border: 1px solid #e3c9a8;
+      border-radius: 8px;
+      color: var(--warn);
+      background: #fff8ed;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .notice.error {
+      border-color: #e0b8b8;
+      color: var(--bad);
+      background: #fff1f1;
+    }
+
+    .notice.show {
+      display: block;
+    }
+
+    .results {
+      display: grid;
+      gap: 16px;
+    }
+
+    .summary-band {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .summary-item {
+      min-width: 0;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+
+    .summary-item b {
+      display: block;
+      font-size: 20px;
+      line-height: 1.08;
+      overflow-wrap: anywhere;
+    }
+
+    .summary-item span {
+      display: block;
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.25;
+    }
+
+    .table-wrap {
+      width: 100%;
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+
+    table {
+      width: 100%;
+      min-width: 760px;
+      border-collapse: collapse;
+      font-variant-numeric: tabular-nums;
+    }
+
+    th,
+    td {
+      padding: 10px 11px;
+      border-bottom: 1px solid var(--line);
+      text-align: right;
+      white-space: nowrap;
+      font-size: 13px;
+    }
+
+    th:first-child,
+    td:first-child {
+      text-align: left;
+    }
+
+    th {
+      color: var(--muted);
+      background: var(--panel-soft);
+      font-size: 12px;
+      font-weight: 760;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .good {
+      color: var(--good);
+      font-weight: 760;
+    }
+
+    .bad {
+      color: var(--bad);
+      font-weight: 760;
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+
+    .section-title {
+      margin: 0 0 8px;
+      font-size: 15px;
+      font-weight: 780;
+    }
+
+    @media (max-width: 860px) {
+      .app {
+        padding: 14px 12px 28px;
+      }
+
+      main {
+        grid-template-columns: 1fr;
+      }
+
+      .summary-band {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 430px) {
+      h1 {
+        font-size: 24px;
+      }
+
+      .form-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .field.wide {
+        grid-column: auto;
+      }
+
+      .summary-band {
+        grid-template-columns: 1fr;
+      }
+
+      .metric {
+        flex-basis: calc(50% - 5px);
+      }
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #10151b;
+        --panel: #17202a;
+        --panel-soft: #1d2933;
+        --text: #edf3f2;
+        --muted: #9aa8b8;
+        --line: #31404d;
+        --accent: #37a18f;
+        --accent-strong: #77d8ca;
+        --warn: #f0b56d;
+        --bad: #ff9999;
+        --good: #79d6a5;
+        --shadow: 0 18px 44px rgba(0, 0, 0, 0.28);
+      }
+
+      input {
+        color: var(--text);
+        background: #111923;
+        border-color: #3b4a57;
+      }
+
+      .segmented {
+        background: #111923;
+        border-color: #3b4a57;
+      }
+
+      .metric {
+        background: rgba(23, 32, 42, 0.86);
+      }
+
+      .notice {
+        background: #332616;
+      }
+
+      .notice.error {
+        background: #351d1d;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div>
+        <h1>Touch Spread Hedge Calculator</h1>
+        <p class="subtitle">Kalshi if-touch + debit vertical spread sizing</p>
+      </div>
+      <div class="topline" aria-label="Key results">
+        <div class="metric"><span class="label">Neutral n range</span><span id="top-range" class="value">--</span></div>
+        <div class="metric"><span class="label">n=max APY</span><span id="top-max-apy" class="value">--</span></div>
+        <div class="metric"><span class="label">n=min APY</span><span id="top-min-apy" class="value">--</span></div>
+      </div>
+    </header>
+
+    <main>
+      <section class="panel" aria-labelledby="inputs-title">
+        <div class="panel-header">
+          <h2 id="inputs-title" class="panel-title">Inputs</h2>
+        </div>
+        <div class="panel-body">
+          <div id="error" class="notice error" role="alert"></div>
+          <div class="form-grid">
+            <div class="field">
+              <label for="current-spx">Current SPX</label>
+              <input id="current-spx" type="number" inputmode="decimal" step="0.01" value="7450" />
+            </div>
+            <div class="field">
+              <label for="kalshi-strike">Kalshi strike</label>
+              <input id="kalshi-strike" type="number" inputmode="decimal" step="0.01" value="8000" />
+            </div>
+            <div class="field">
+              <label for="kalshi-price">Kalshi price</label>
+              <input id="kalshi-price" type="number" inputmode="decimal" step="0.01" min="0.0001" max="0.9999" value="0.53" />
+            </div>
+            <div class="field">
+              <span class="control-label">Kalshi side</span>
+              <div class="segmented" data-field="kalshiSide">
+                <button type="button" data-value="YES" aria-pressed="true">YES</button>
+                <button type="button" data-value="NO" aria-pressed="false">NO</button>
+              </div>
+            </div>
+            <div class="field">
+              <span class="control-label">Spread type</span>
+              <div class="segmented" data-field="spreadType">
+                <button type="button" data-value="put" aria-pressed="true">Put</button>
+                <button type="button" data-value="call" aria-pressed="false">Call</button>
+              </div>
+            </div>
+            <div class="field">
+              <label for="strikes">Spread strikes</label>
+              <input id="strikes" type="text" inputmode="decimal" value="8000/8040" spellcheck="false" />
+            </div>
+            <div class="field">
+              <label for="spread-price">Spread price</label>
+              <input id="spread-price" type="number" inputmode="decimal" step="0.01" value="25.5" />
+            </div>
+            <div class="field">
+              <label for="expiry">Expiry</label>
+              <input id="expiry" type="date" value="2026-12-31" />
+            </div>
+            <div class="field">
+              <label for="iv">IV</label>
+              <input id="iv" type="number" inputmode="decimal" step="0.001" value="0.2" />
+            </div>
+            <div class="field">
+              <label for="iv-shock">IV shock</label>
+              <input id="iv-shock" type="number" inputmode="decimal" step="0.001" value="0.03" />
+            </div>
+            <div class="field">
+              <label for="risk-free-rate">Risk-free rate</label>
+              <input id="risk-free-rate" type="number" inputmode="decimal" step="0.001" value="0.05" />
+            </div>
+          </div>
+          <div class="actions">
+            <button id="reset-defaults" class="action secondary" type="button">Reset</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="results" aria-live="polite">
+        <div id="warning" class="notice"></div>
+        <section class="summary-band" aria-label="Derived values">
+          <div class="summary-item"><b id="summary-width">--</b><span>Width</span></div>
+          <div class="summary-item"><b id="summary-short">--</b><span>Short strike</span></div>
+          <div class="summary-item"><b id="summary-days">--</b><span>Holding days</span></div>
+          <div class="summary-item"><b id="summary-touch">--</b><span>Assumed touch</span></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <h2 class="panel-title">Use n=max</h2>
+          </div>
+          <div class="panel-body">
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Scenario</th>
+                    <th>V</th>
+                    <th>n range</th>
+                    <th>n</th>
+                    <th>No touch PnL</th>
+                    <th>Touch PnL</th>
+                    <th>ROI</th>
+                    <th>APY</th>
+                  </tr>
+                </thead>
+                <tbody id="max-table"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <h2 class="panel-title">Use n=min</h2>
+          </div>
+          <div class="panel-body">
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Scenario</th>
+                    <th>V</th>
+                    <th>n range</th>
+                    <th>n</th>
+                    <th>No touch PnL</th>
+                    <th>Touch PnL</th>
+                    <th>ROI</th>
+                    <th>APY</th>
+                  </tr>
+                </thead>
+                <tbody id="min-table"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    (() => {
+      "use strict";
+
+      const MS_PER_DAY = 24 * 60 * 60 * 1000;
+      const DEFAULTS = Object.freeze({
+        currentSpx: 7450,
+        kalshiStrike: 8000,
+        kalshiPrice: 0.53,
+        kalshiSide: "YES",
+        spreadType: "put",
+        strikes: "8000/8040",
+        spreadPrice: 25.5,
+        expiry: "2026-12-31",
+        iv: 0.2,
+        ivShock: 0.03,
+        riskFreeRate: 0.05,
+      });
+
+      const els = {
+        currentSpx: document.getElementById("current-spx"),
+        kalshiStrike: document.getElementById("kalshi-strike"),
+        kalshiPrice: document.getElementById("kalshi-price"),
+        strikes: document.getElementById("strikes"),
+        spreadPrice: document.getElementById("spread-price"),
+        expiry: document.getElementById("expiry"),
+        iv: document.getElementById("iv"),
+        ivShock: document.getElementById("iv-shock"),
+        riskFreeRate: document.getElementById("risk-free-rate"),
+        error: document.getElementById("error"),
+        warning: document.getElementById("warning"),
+        topRange: document.getElementById("top-range"),
+        topMaxApy: document.getElementById("top-max-apy"),
+        topMinApy: document.getElementById("top-min-apy"),
+        summaryWidth: document.getElementById("summary-width"),
+        summaryShort: document.getElementById("summary-short"),
+        summaryDays: document.getElementById("summary-days"),
+        summaryTouch: document.getElementById("summary-touch"),
+        maxTable: document.getElementById("max-table"),
+        minTable: document.getElementById("min-table"),
+        resetDefaults: document.getElementById("reset-defaults"),
+      };
+
+      const state = {
+        kalshiSide: DEFAULTS.kalshiSide,
+        spreadType: DEFAULTS.spreadType,
+      };
+
+      function erf(x) {
+        const sign = x < 0 ? -1 : 1;
+        const ax = Math.abs(x);
+        const a1 = 0.254829592;
+        const a2 = -0.284496736;
+        const a3 = 1.421413741;
+        const a4 = -1.453152027;
+        const a5 = 1.061405429;
+        const p = 0.3275911;
+        const t = 1 / (1 + p * ax);
+        const y = 1 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * Math.exp(-ax * ax);
+        return sign * y;
+      }
+
+      function normCdf(x) {
+        return 0.5 * (1 + erf(x / Math.sqrt(2)));
+      }
+
+      function bsCall(spot, strike, iv, tte, r) {
+        if (tte <= 0) return Math.max(spot - strike, 0);
+        const sqrtT = Math.sqrt(tte);
+        const d1 = (Math.log(spot / strike) + (r + 0.5 * iv * iv) * tte) / (iv * sqrtT);
+        const d2 = d1 - iv * sqrtT;
+        return spot * normCdf(d1) - strike * Math.exp(-r * tte) * normCdf(d2);
+      }
+
+      function bsPut(spot, strike, iv, tte, r) {
+        if (tte <= 0) return Math.max(strike - spot, 0);
+        const sqrtT = Math.sqrt(tte);
+        const d1 = (Math.log(spot / strike) + (r + 0.5 * iv * iv) * tte) / (iv * sqrtT);
+        const d2 = d1 - iv * sqrtT;
+        return strike * Math.exp(-r * tte) * normCdf(-d2) - spot * normCdf(-d1);
+      }
+
+      function debitSpreadBsPrice(input, spot, tteYears, iv) {
+        const low = Math.min(input.strikeA, input.strikeB);
+        const high = Math.max(input.strikeA, input.strikeB);
+        if (input.spreadType === "call") {
+          return bsCall(spot, low, iv, tteYears, input.riskFreeRate) -
+            bsCall(spot, high, iv, tteYears, input.riskFreeRate);
+        }
+        return bsPut(spot, high, iv, tteYears, input.riskFreeRate) -
+          bsPut(spot, low, iv, tteYears, input.riskFreeRate);
+      }
+
+      function shortStrikeForDebitSpread(spreadType, strikeA, strikeB) {
+        const low = Math.min(strikeA, strikeB);
+        const high = Math.max(strikeA, strikeB);
+        if (spreadType === "put") return low;
+        if (spreadType === "call") return high;
+        throw new Error("spread type must be put or call");
+      }
+
+      function expectedHedgeSpreadType(input) {
+        if (!Number.isFinite(input.currentSpx) || input.currentSpx === input.kalshiStrike) return null;
+        const touchIsAbove = input.currentSpx < input.kalshiStrike;
+        if (touchIsAbove) return input.kalshiSide === "YES" ? "put" : "call";
+        return input.kalshiSide === "YES" ? "call" : "put";
+      }
+
+      function parseStrikes(raw) {
+        const parts = String(raw).split("/").map((part) => part.trim()).filter(Boolean);
+        if (parts.length !== 2) throw new Error("Spread strikes must look like 8000/8040.");
+        const strikeA = Number(parts[0]);
+        const strikeB = Number(parts[1]);
+        if (!Number.isFinite(strikeA) || !Number.isFinite(strikeB)) {
+          throw new Error("Spread strikes must be numeric.");
+        }
+        return [strikeA, strikeB];
+      }
+
+      function parseNumber(value, label, { optional = false, min = null, max = null } = {}) {
+        if (String(value).trim() === "") {
+          if (optional) return null;
+          throw new Error(`${label} is required.`);
+        }
+        const parsed = Number(value);
+        if (!Number.isFinite(parsed)) throw new Error(`${label} must be numeric.`);
+        if (min !== null && parsed < min) throw new Error(`${label} must be at least ${min}.`);
+        if (max !== null && parsed > max) throw new Error(`${label} must be at most ${max}.`);
+        return parsed;
+      }
+
+      function parseDateLocal(raw) {
+        if (!raw) throw new Error("Expiry is required.");
+        const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+        if (!match) throw new Error("Expiry must use YYYY-MM-DD.");
+        return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+      }
+
+      function formatDateLocal(date) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
+        return `${year}-${month}-${day}`;
+      }
+
+      function daysUntilExpiry(expiryDate, today = new Date()) {
+        const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        const end = new Date(expiryDate.getFullYear(), expiryDate.getMonth(), expiryDate.getDate());
+        const days = Math.round((end.getTime() - start.getTime()) / MS_PER_DAY);
+        if (days <= 0) throw new Error(`Expiry ${formatDateLocal(expiryDate)} must be after today ${formatDateLocal(start)}.`);
+        return days;
+      }
+
+      function assumedTouchDate(expiryDate, holdingDays) {
+        const remainingDays = holdingDays / 2;
+        return new Date(expiryDate.getTime() - remainingDays * MS_PER_DAY);
+      }
+
+      function vScenarios(input, holdingDays) {
+        if (!Number.isFinite(holdingDays) || holdingDays <= 0) {
+          throw new Error("BS V estimate requires a positive holding period.");
+        }
+        const touchSpot = shortStrikeForDebitSpread(input.spreadType, input.strikeA, input.strikeB);
+        const touchTteYears = (holdingDays / 2) / 365;
+        const ivs = [
+          Math.max(0.0001, input.iv - input.ivShock),
+          input.iv,
+          input.iv + input.ivShock,
+        ];
+        const prices = ivs.map((iv) => debitSpreadBsPrice(input, touchSpot, touchTteYears, iv));
+        const sorted = [...prices].sort((a, b) => a - b);
+        return [
+          { label: "conservative", v: sorted[0] },
+          { label: "neutral", v: prices[1] },
+          { label: "optimistic", v: sorted[2] },
+        ];
+      }
+
+      function integerNRange(input, v) {
+        const p = input.kalshiPrice;
+        const width = Math.abs(input.strikeB - input.strikeA);
+        let lowerOpen;
+        let upperOpen;
+        if (input.kalshiSide === "NO") {
+          lowerOpen = input.spreadPrice * 100 / (1 - p);
+          upperOpen = (v - input.spreadPrice) * 100 / p;
+        } else {
+          lowerOpen = (input.spreadPrice - v) * 100 / (1 - p);
+          upperOpen = (width - input.spreadPrice) * 100 / p;
+        }
+        const eps = 1e-9;
+        const nMin = Math.max(1, Math.floor(lowerOpen + eps) + 1);
+        const nMax = Math.ceil(upperOpen - eps) - 1;
+        if (nMin > nMax) return [null, null];
+        return [nMin, nMax];
+      }
+
+      function pnlNoTouch(input, n) {
+        const width = Math.abs(input.strikeB - input.strikeA);
+        if (input.kalshiSide === "YES") {
+          return -input.kalshiPrice * n + (width - input.spreadPrice) * 100;
+        }
+        return (1 - input.kalshiPrice) * n - input.spreadPrice * 100;
+      }
+
+      function pnlTouch(input, n, v) {
+        if (input.kalshiSide === "YES") {
+          return (1 - input.kalshiPrice) * n + (v - input.spreadPrice) * 100;
+        }
+        return -input.kalshiPrice * n + (v - input.spreadPrice) * 100;
+      }
+
+      function totalUpfrontCost(input, n) {
+        return input.kalshiPrice * n + input.spreadPrice * 100;
+      }
+
+      function annualizeRoi(roi, holdingDays) {
+        if (!Number.isFinite(holdingDays) || holdingDays <= 0) return null;
+        return Math.pow(1 + roi, 365 / holdingDays) - 1;
+      }
+
+      function evaluate(input, today = new Date()) {
+        const expiryDate = parseDateLocal(input.expiry);
+        const holdingDays = daysUntilExpiry(expiryDate, today);
+        const width = Math.abs(input.strikeB - input.strikeA);
+        const shortStrike = shortStrikeForDebitSpread(input.spreadType, input.strikeA, input.strikeB);
+        const rows = vScenarios(input, holdingDays).map((scenario) => {
+          const [nMin, nMax] = integerNRange(input, scenario.v);
+          if (nMin === null || nMax === null) {
+            return {
+              ...scenario,
+              nMin: null,
+              nMax: null,
+              feasible: false,
+              noTouchPnlAtNMin: null,
+              touchPnlAtNMin: null,
+              noTouchPnlAtNMax: null,
+              touchPnlAtNMax: null,
+            };
+          }
+          return {
+            ...scenario,
+            nMin,
+            nMax,
+            feasible: true,
+            noTouchPnlAtNMin: pnlNoTouch(input, nMin),
+            touchPnlAtNMin: pnlTouch(input, nMin, scenario.v),
+            noTouchPnlAtNMax: pnlNoTouch(input, nMax),
+            touchPnlAtNMax: pnlTouch(input, nMax, scenario.v),
+          };
+        });
+        return {
+          rows,
+          width,
+          shortStrike,
+          holdingDays,
+          expiryDate,
+          touchDate: assumedTouchDate(expiryDate, holdingDays),
+        };
+      }
+
+      function rowMetrics(input, row, nField, holdingDays) {
+        if (!row.feasible) return { n: null, noTouchPnl: null, touchPnl: null, roi: null, apy: null };
+        const useMax = nField === "max";
+        const n = useMax ? row.nMax : row.nMin;
+        const noTouchPnl = useMax ? row.noTouchPnlAtNMax : row.noTouchPnlAtNMin;
+        const touchPnl = useMax ? row.touchPnlAtNMax : row.touchPnlAtNMin;
+        const roiPnl = Math.max(noTouchPnl, touchPnl);
+        const roi = roiPnl / totalUpfrontCost(input, n);
+        return { n, noTouchPnl, touchPnl, roi, apy: annualizeRoi(roi, holdingDays) };
+      }
+
+      function readInput() {
+        const [strikeA, strikeB] = parseStrikes(els.strikes.value);
+        const input = {
+          currentSpx: parseNumber(els.currentSpx.value, "Current SPX", { optional: true }),
+          kalshiStrike: parseNumber(els.kalshiStrike.value, "Kalshi strike"),
+          kalshiPrice: parseNumber(els.kalshiPrice.value, "Kalshi price", { min: 0.0001, max: 0.9999 }),
+          kalshiSide: state.kalshiSide,
+          spreadType: state.spreadType,
+          strikeA,
+          strikeB,
+          spreadPrice: parseNumber(els.spreadPrice.value, "Spread price", { min: 0 }),
+          expiry: els.expiry.value,
+          iv: parseNumber(els.iv.value, "IV", { min: 0.0001 }),
+          ivShock: parseNumber(els.ivShock.value, "IV shock", { min: 0 }),
+          riskFreeRate: parseNumber(els.riskFreeRate.value, "Risk-free rate"),
+        };
+        return input;
+      }
+
+      function fmtNumber(value, digits = 2) {
+        if (!Number.isFinite(value)) return "--";
+        return value.toLocaleString(undefined, {
+          minimumFractionDigits: digits,
+          maximumFractionDigits: digits,
+        });
+      }
+
+      function fmtCompactNumber(value) {
+        if (!Number.isFinite(value)) return "--";
+        return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
+      }
+
+      function fmtMoney(value) {
+        if (!Number.isFinite(value)) return "--";
+        return `$${fmtNumber(value, 2)}`;
+      }
+
+      function fmtPct(value) {
+        if (!Number.isFinite(value)) return "--";
+        return `${fmtNumber(value * 100, 2)}%`;
+      }
+
+      function rangeText(row) {
+        return row.feasible ? `[${row.nMin}, ${row.nMax}]` : "none";
+      }
+
+      function pnlClass(value) {
+        if (!Number.isFinite(value)) return "";
+        if (value > 0) return "good";
+        if (value < 0) return "bad";
+        return "";
+      }
+
+      function renderTable(tbody, input, rows, nField, holdingDays) {
+        tbody.innerHTML = rows.map((row) => {
+          const metrics = rowMetrics(input, row, nField, holdingDays);
+          return `
+            <tr>
+              <td>${row.label}</td>
+              <td>${fmtNumber(row.v, 2)}</td>
+              <td>${rangeText(row)}</td>
+              <td>${metrics.n ?? "--"}</td>
+              <td class="${pnlClass(metrics.noTouchPnl)}">${fmtMoney(metrics.noTouchPnl)}</td>
+              <td class="${pnlClass(metrics.touchPnl)}">${fmtMoney(metrics.touchPnl)}</td>
+              <td>${fmtPct(metrics.roi)}</td>
+              <td>${fmtPct(metrics.apy)}</td>
+            </tr>
+          `;
+        }).join("");
+      }
+
+      function setNotice(el, messages, isError = false) {
+        const filtered = Array.isArray(messages) ? messages.filter(Boolean) : [messages].filter(Boolean);
+        el.textContent = filtered.join(" ");
+        el.classList.toggle("show", filtered.length > 0);
+        el.classList.toggle("error", isError);
+      }
+
+      function render() {
+        try {
+          const input = readInput();
+          const result = evaluate(input);
+          const neutral = result.rows.find((row) => row.label === "neutral") || result.rows[1];
+          const neutralMax = rowMetrics(input, neutral, "max", result.holdingDays);
+          const neutralMin = rowMetrics(input, neutral, "min", result.holdingDays);
+
+          els.topRange.textContent = neutral && neutral.feasible ? rangeText(neutral) : "none";
+          els.topMaxApy.textContent = fmtPct(neutralMax.apy);
+          els.topMinApy.textContent = fmtPct(neutralMin.apy);
+          els.summaryWidth.textContent = fmtCompactNumber(result.width);
+          els.summaryShort.textContent = fmtCompactNumber(result.shortStrike);
+          els.summaryDays.textContent = fmtCompactNumber(result.holdingDays);
+          els.summaryTouch.textContent = formatDateLocal(result.touchDate);
+
+          renderTable(els.maxTable, input, result.rows, "max", result.holdingDays);
+          renderTable(els.minTable, input, result.rows, "min", result.holdingDays);
+
+          const warnings = [];
+          const expectedHedge = expectedHedgeSpreadType(input);
+          if (expectedHedge !== null && input.spreadType !== expectedHedge) {
+            warnings.push(`Hedge direction suggests ${expectedHedge} when current SPX=${fmtCompactNumber(input.currentSpx)}.`);
+          }
+          if (result.shortStrike < input.kalshiStrike) {
+            warnings.push(`Short leg ${fmtCompactNumber(result.shortStrike)} is below Kalshi if-touch strike ${fmtCompactNumber(input.kalshiStrike)}.`);
+          }
+          setNotice(els.warning, warnings);
+          setNotice(els.error, "", true);
+        } catch (error) {
+          setNotice(els.error, error.message || String(error), true);
+          setNotice(els.warning, "");
+          els.maxTable.innerHTML = "";
+          els.minTable.innerHTML = "";
+          els.topRange.textContent = "--";
+          els.topMaxApy.textContent = "--";
+          els.topMinApy.textContent = "--";
+        }
+      }
+
+      function setSegmented(field, value) {
+        state[field] = value;
+        document.querySelectorAll(`.segmented[data-field="${field}"] button`).forEach((button) => {
+          button.setAttribute("aria-pressed", button.dataset.value === value ? "true" : "false");
+        });
+        render();
+      }
+
+      function resetDefaults() {
+        els.currentSpx.value = DEFAULTS.currentSpx;
+        els.kalshiStrike.value = DEFAULTS.kalshiStrike;
+        els.kalshiPrice.value = DEFAULTS.kalshiPrice;
+        els.strikes.value = DEFAULTS.strikes;
+        els.spreadPrice.value = DEFAULTS.spreadPrice;
+        els.expiry.value = DEFAULTS.expiry;
+        els.iv.value = DEFAULTS.iv;
+        els.ivShock.value = DEFAULTS.ivShock;
+        els.riskFreeRate.value = DEFAULTS.riskFreeRate;
+        setSegmented("kalshiSide", DEFAULTS.kalshiSide);
+        setSegmented("spreadType", DEFAULTS.spreadType);
+      }
+
+      document.querySelectorAll(".segmented button").forEach((button) => {
+        button.addEventListener("click", () => {
+          const container = button.closest(".segmented");
+          setSegmented(container.dataset.field, button.dataset.value);
+        });
+      });
+
+      [
+        els.currentSpx,
+        els.kalshiStrike,
+        els.kalshiPrice,
+        els.strikes,
+        els.spreadPrice,
+        els.expiry,
+        els.iv,
+        els.ivShock,
+        els.riskFreeRate,
+      ].forEach((input) => {
+        input.addEventListener("input", render);
+        input.addEventListener("change", render);
+      });
+      els.resetDefaults.addEventListener("click", resetDefaults);
+
+      window.TouchSpreadHedgeCalculator = {
+        DEFAULTS,
+        annualizeRoi,
+        bsCall,
+        bsPut,
+        daysUntilExpiry,
+        evaluate,
+        integerNRange,
+        normCdf,
+        parseStrikes,
+        rowMetrics,
+        shortStrikeForDebitSpread,
+      };
+
+      render();
+    })();
+  </script>
+</body>
+</html>
