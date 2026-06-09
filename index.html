@@ -474,8 +474,12 @@
               </div>
             </div>
             <div class="field">
-              <label for="strikes">Spread strikes</label>
-              <input id="strikes" type="text" inputmode="decimal" value="8000/8040" spellcheck="false" />
+              <label for="strike-a">Strike A</label>
+              <input id="strike-a" type="number" inputmode="decimal" step="0.01" value="8000" />
+            </div>
+            <div class="field">
+              <label for="strike-b">Strike B</label>
+              <input id="strike-b" type="number" inputmode="decimal" step="0.01" value="8040" />
             </div>
             <div class="field">
               <label for="spread-price">Spread price</label>
@@ -577,7 +581,8 @@
         kalshiPrice: 0.53,
         kalshiSide: "YES",
         spreadType: "put",
-        strikes: "8000/8040",
+        strikeA: 8000,
+        strikeB: 8040,
         spreadPrice: 25.5,
         expiry: "2026-12-31",
         iv: 0.2,
@@ -589,7 +594,8 @@
         currentSpx: document.getElementById("current-spx"),
         kalshiStrike: document.getElementById("kalshi-strike"),
         kalshiPrice: document.getElementById("kalshi-price"),
-        strikes: document.getElementById("strikes"),
+        strikeA: document.getElementById("strike-a"),
+        strikeB: document.getElementById("strike-b"),
         spreadPrice: document.getElementById("spread-price"),
         expiry: document.getElementById("expiry"),
         iv: document.getElementById("iv"),
@@ -839,15 +845,14 @@
       }
 
       function readInput() {
-        const [strikeA, strikeB] = parseStrikes(els.strikes.value);
         const input = {
           currentSpx: parseNumber(els.currentSpx.value, "Current SPX", { optional: true }),
           kalshiStrike: parseNumber(els.kalshiStrike.value, "Kalshi strike"),
           kalshiPrice: parseNumber(els.kalshiPrice.value, "Kalshi price", { min: 0.0001, max: 0.9999 }),
           kalshiSide: state.kalshiSide,
           spreadType: state.spreadType,
-          strikeA,
-          strikeB,
+          strikeA: parseNumber(els.strikeA.value, "Strike A"),
+          strikeB: parseNumber(els.strikeB.value, "Strike B"),
           spreadPrice: parseNumber(els.spreadPrice.value, "Spread price", { min: 0 }),
           expiry: els.expiry.value,
           iv: parseNumber(els.iv.value, "IV", { min: 0.0001 }),
@@ -968,7 +973,8 @@
         els.currentSpx.value = DEFAULTS.currentSpx;
         els.kalshiStrike.value = DEFAULTS.kalshiStrike;
         els.kalshiPrice.value = DEFAULTS.kalshiPrice;
-        els.strikes.value = DEFAULTS.strikes;
+        els.strikeA.value = DEFAULTS.strikeA;
+        els.strikeB.value = DEFAULTS.strikeB;
         els.spreadPrice.value = DEFAULTS.spreadPrice;
         els.expiry.value = DEFAULTS.expiry;
         els.iv.value = DEFAULTS.iv;
@@ -989,7 +995,8 @@
         els.currentSpx,
         els.kalshiStrike,
         els.kalshiPrice,
-        els.strikes,
+        els.strikeA,
+        els.strikeB,
         els.spreadPrice,
         els.expiry,
         els.iv,
