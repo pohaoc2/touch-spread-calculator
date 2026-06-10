@@ -475,11 +475,11 @@
               </div>
             </div>
             <div class="field">
-              <label for="strike-a">Strike A</label>
+              <label for="strike-a">Short Strike</label>
               <input id="strike-a" type="number" inputmode="decimal" step="0.01" value="8000" />
             </div>
             <div class="field">
-              <label for="strike-b">Strike B</label>
+              <label for="strike-b">Long Strike</label>
               <input id="strike-b" type="number" inputmode="decimal" step="0.01" value="8040" />
             </div>
             <div class="field">
@@ -513,6 +513,7 @@
           </div>
           <div class="actions">
             <button id="reset-defaults" class="action secondary" type="button">Reset</button>
+            <button id="fetch-spread" class="action secondary" type="button">Fetch price (BS)</button>
           </div>
         </div>
       </section>
@@ -541,8 +542,8 @@
                     <th>n</th>
                     <th>No touch PnL</th>
                     <th>Touch PnL</th>
-                    <th>ROI</th>
-                    <th>APY</th>
+                    <th>ROI (no/touch)</th>
+                    <th>APY (no/touch)</th>
                   </tr>
                 </thead>
                 <tbody id="max-table"></tbody>
@@ -566,8 +567,8 @@
                     <th>n</th>
                     <th>No touch PnL</th>
                     <th>Touch PnL</th>
-                    <th>ROI</th>
-                    <th>APY</th>
+                    <th>ROI (no/touch)</th>
+                    <th>APY (no/touch)</th>
                   </tr>
                 </thead>
                 <tbody id="min-table"></tbody>
@@ -591,8 +592,8 @@
                     <th>n</th>
                     <th>No touch PnL</th>
                     <th>Touch PnL</th>
-                    <th>ROI</th>
-                    <th>APY</th>
+                    <th>ROI (no/touch)</th>
+                    <th>APY (no/touch)</th>
                   </tr>
                 </thead>
                 <tbody id="custom-table"></tbody>
@@ -633,6 +634,7 @@
         strikeA: document.getElementById("strike-a"),
         strikeB: document.getElementById("strike-b"),
         spreadPrice: document.getElementById("spread-price"),
+        fetchSpread: document.getElementById("fetch-spread"),
         customN: document.getElementById("custom-n"),
         expiry: document.getElementById("expiry"),
         touchDate: document.getElementById("touch-date"),
@@ -852,6 +854,7 @@
         const touchDate = input.touchDate ? parseDateLocal(input.touchDate) : assumedTouchDate(expiryDate, holdingDays);
         const touchRemainingDays = daysBetweenDates(touchDate, expiryDate);
         if (touchRemainingDays <= 0) throw new Error("Touch date must be before expiry.");
+        const touchDays = Math.max(1, daysBetweenDates(today, touchDate));
         const width = Math.abs(input.strikeB - input.strikeA);
         const shortStrike = shortStrikeForDebitSpread(input.spreadType, input.strikeA, input.strikeB);
         const rows = vScenarios(input, touchRemainingDays).map((scenario) => {
@@ -884,26 +887,44 @@
           width,
           shortStrike,
           holdingDays,
+          touchDays,
           touchRemainingDays,
           expiryDate,
           touchDate,
         };
       }
 
-      function metricsForN(input, row, n, holdingDays) {
-        if (!Number.isFinite(n) || n < 1) return { n: null, noTouchPnl: null, touchPnl: null, roi: null, apy: null };
+      function metricsForN(input, row, n, holdingDays, touchDays) {
+        if (!Number.isFinite(n) || n < 1) {
+          return {
+            n: null, noTouchPnl: null, touchPnl: null, roi: null, apy: null,
+            noTouchRoi: null, noTouchApy: null, touchRoi: null, touchApy: null,
+          };
+        }
         const noTouchPnl = pnlNoTouch(input, n);
         const touchPnl = pnlTouch(input, n, row.v);
-        const roiPnl = Math.max(noTouchPnl, touchPnl);
-        const roi = roiPnl / totalUpfrontCost(input, n);
-        return { n, noTouchPnl, touchPnl, roi, apy: annualizeRoi(roi, holdingDays) };
+        const cost = totalUpfrontCost(input, n);
+        const noTouchRoi = noTouchPnl / cost;
+        const touchRoi = touchPnl / cost;
+        // No-touch resolves at expiry (holdingDays); touch resolves at the touch date (touchDays).
+        const noTouchApy = annualizeRoi(noTouchRoi, holdingDays);
+        const touchApy = annualizeRoi(touchRoi, touchDays);
+        const touchIsMax = touchPnl > noTouchPnl;
+        const roiPnl = touchIsMax ? touchPnl : noTouchPnl;
+        const roi = roiPnl / cost;
+        const apy = touchIsMax ? touchApy : noTouchApy;
+        return {
+          n, noTouchPnl, touchPnl, roi, apy,
+          noTouchRoi, noTouchApy,
+          touchRoi, touchApy,
+        };
       }
 
-      function rowMetrics(input, row, nField, holdingDays) {
+      function rowMetrics(input, row, nField, holdingDays, touchDays) {
         if (!row.feasible) return { n: null, noTouchPnl: null, touchPnl: null, roi: null, apy: null };
         const useMax = nField === "max";
         const n = useMax ? row.nMax : row.nMin;
-        return metricsForN(input, row, n, holdingDays);
+        return metricsForN(input, row, n, holdingDays, touchDays);
       }
 
       function readInput() {
@@ -960,9 +981,9 @@
         return "";
       }
 
-      function renderTable(tbody, input, rows, nField, holdingDays) {
+      function renderTable(tbody, input, rows, nField, holdingDays, touchDays) {
         tbody.innerHTML = rows.map((row) => {
-          const metrics = rowMetrics(input, row, nField, holdingDays);
+          const metrics = rowMetrics(input, row, nField, holdingDays, touchDays);
           return `
             <tr>
               <td>${row.label}</td>
@@ -971,16 +992,16 @@
               <td>${metrics.n ?? "--"}</td>
               <td class="${pnlClass(metrics.noTouchPnl)}">${fmtMoney(metrics.noTouchPnl)}</td>
               <td class="${pnlClass(metrics.touchPnl)}">${fmtMoney(metrics.touchPnl)}</td>
-              <td>${fmtPct(metrics.roi)}</td>
-              <td>${fmtPct(metrics.apy)}</td>
+              <td><span class="${pnlClass(metrics.noTouchRoi)}">${fmtPct(metrics.noTouchRoi)}</span> / <span class="${pnlClass(metrics.touchRoi)}">${fmtPct(metrics.touchRoi)}</span></td>
+              <td><span class="${pnlClass(metrics.noTouchApy)}">${fmtPct(metrics.noTouchApy)}</span> / <span class="${pnlClass(metrics.touchApy)}">${fmtPct(metrics.touchApy)}</span></td>
             </tr>
           `;
         }).join("");
       }
 
-      function renderCustomTable(tbody, input, rows, holdingDays) {
+      function renderCustomTable(tbody, input, rows, holdingDays, touchDays) {
         tbody.innerHTML = rows.map((row) => {
-          const metrics = metricsForN(input, row, input.customN, holdingDays);
+          const metrics = metricsForN(input, row, input.customN, holdingDays, touchDays);
           return `
             <tr>
               <td>${row.label}</td>
@@ -989,8 +1010,8 @@
               <td>${metrics.n ?? "--"}</td>
               <td class="${pnlClass(metrics.noTouchPnl)}">${fmtMoney(metrics.noTouchPnl)}</td>
               <td class="${pnlClass(metrics.touchPnl)}">${fmtMoney(metrics.touchPnl)}</td>
-              <td>${fmtPct(metrics.roi)}</td>
-              <td>${fmtPct(metrics.apy)}</td>
+              <td><span class="${pnlClass(metrics.noTouchRoi)}">${fmtPct(metrics.noTouchRoi)}</span> / <span class="${pnlClass(metrics.touchRoi)}">${fmtPct(metrics.touchRoi)}</span></td>
+              <td><span class="${pnlClass(metrics.noTouchApy)}">${fmtPct(metrics.noTouchApy)}</span> / <span class="${pnlClass(metrics.touchApy)}">${fmtPct(metrics.touchApy)}</span></td>
             </tr>
           `;
         }).join("");
@@ -1008,9 +1029,9 @@
           const input = readInput();
           const result = evaluate(input);
           const neutral = result.rows.find((row) => row.label === "neutral") || result.rows[1];
-          const neutralMax = rowMetrics(input, neutral, "max", result.holdingDays);
-          const neutralMin = rowMetrics(input, neutral, "min", result.holdingDays);
-          const neutralCustom = metricsForN(input, neutral, input.customN, result.holdingDays);
+          const neutralMax = rowMetrics(input, neutral, "max", result.holdingDays, result.touchDays);
+          const neutralMin = rowMetrics(input, neutral, "min", result.holdingDays, result.touchDays);
+          const neutralCustom = metricsForN(input, neutral, input.customN, result.holdingDays, result.touchDays);
 
           els.topRange.textContent = neutral && neutral.feasible ? rangeText(neutral) : "none";
           els.topMaxApy.textContent = fmtPct(neutralMax.apy);
@@ -1021,9 +1042,9 @@
           els.summaryDays.textContent = fmtCompactNumber(result.holdingDays);
           els.summaryTouch.textContent = formatDateLocal(result.touchDate);
 
-          renderTable(els.maxTable, input, result.rows, "max", result.holdingDays);
-          renderTable(els.minTable, input, result.rows, "min", result.holdingDays);
-          renderCustomTable(els.customTable, input, result.rows, result.holdingDays);
+          renderTable(els.maxTable, input, result.rows, "max", result.holdingDays, result.touchDays);
+          renderTable(els.minTable, input, result.rows, "min", result.holdingDays, result.touchDays);
+          renderCustomTable(els.customTable, input, result.rows, result.holdingDays, result.touchDays);
 
           const warnings = [];
           const expectedHedge = expectedHedgeSpreadType(input);
@@ -1097,6 +1118,44 @@
         input.addEventListener("input", render);
         input.addEventListener("change", render);
       });
+      function fetchSpreadPrice() {
+        try {
+          const input = readInput();
+          if (!Number.isFinite(input.currentSpx)) {
+            throw new Error("Current SPX is required to compute the Black-Scholes spread price.");
+          }
+          const expiryDate = parseDateLocal(input.expiry);
+          const holdingDays = daysUntilExpiry(expiryDate);
+          const tteYears = holdingDays / 365;
+          const price = debitSpreadBsPrice(input, input.currentSpx, tteYears, input.iv);
+          els.spreadPrice.value = price.toFixed(2);
+          setNotice(els.error, "", true);
+          render();
+        } catch (error) {
+          setNotice(els.error, error.message || String(error), true);
+        }
+      }
+
+      els.fetchSpread.addEventListener("click", fetchSpreadPrice);
+
+      els.kalshiStrike.addEventListener("input", () => {
+        els.strikeA.value = els.kalshiStrike.value;
+        render();
+      });
+
+      function syncTouchDateToExpiry() {
+        try {
+          const expiryDate = parseDateLocal(els.expiry.value);
+          const holdingDays = daysUntilExpiry(expiryDate);
+          els.touchDate.value = formatDateLocal(assumedTouchDate(expiryDate, holdingDays));
+          render();
+        } catch (error) {
+          /* leave touch date as-is on invalid expiry; render() surfaces the error */
+        }
+      }
+
+      els.expiry.addEventListener("change", syncTouchDateToExpiry);
+
       els.resetDefaults.addEventListener("click", resetDefaults);
 
       window.TouchSpreadHedgeCalculator = {
