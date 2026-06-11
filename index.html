@@ -499,8 +499,12 @@
               <input id="touch-date" type="date" value="2026-09-19" />
             </div>
             <div class="field">
-              <label for="iv">IV</label>
-              <input id="iv" type="number" inputmode="decimal" step="0.001" value="0.2" />
+              <label for="iv-short">IV (short leg)</label>
+              <input id="iv-short" type="number" inputmode="decimal" step="0.001" value="0.2" />
+            </div>
+            <div class="field">
+              <label for="iv-long">IV (long leg)</label>
+              <input id="iv-long" type="number" inputmode="decimal" step="0.001" value="0.2" />
             </div>
             <div class="field">
               <label for="iv-shock">IV shock</label>
@@ -622,7 +626,8 @@
         customN: 2000,
         expiry: "2026-12-31",
         touchDate: "2026-09-19",
-        iv: 0.2,
+        ivShort: 0.2,
+        ivLong: 0.2,
         ivShock: 0.03,
         riskFreeRate: 0.05,
       });
@@ -638,7 +643,8 @@
         customN: document.getElementById("custom-n"),
         expiry: document.getElementById("expiry"),
         touchDate: document.getElementById("touch-date"),
-        iv: document.getElementById("iv"),
+        ivShort: document.getElementById("iv-short"),
+        ivLong: document.getElementById("iv-long"),
         ivShock: document.getElementById("iv-shock"),
         riskFreeRate: document.getElementById("risk-free-rate"),
         error: document.getElementById("error"),
@@ -696,15 +702,18 @@
         return strike * Math.exp(-r * tte) * normCdf(-d2) - spot * normCdf(-d1);
       }
 
-      function debitSpreadBsPrice(input, spot, tteYears, iv) {
+      // Per-leg IVs: short leg = strike we sell, long leg = strike we buy.
+      // Call debit spread: long = low strike, short = high strike.
+      // Put debit spread: long = high strike, short = low strike.
+      function debitSpreadBsPrice(input, spot, tteYears, ivShort, ivLong) {
         const low = Math.min(input.strikeA, input.strikeB);
         const high = Math.max(input.strikeA, input.strikeB);
         if (input.spreadType === "call") {
-          return bsCall(spot, low, iv, tteYears, input.riskFreeRate) -
-            bsCall(spot, high, iv, tteYears, input.riskFreeRate);
+          return bsCall(spot, low, ivLong, tteYears, input.riskFreeRate) -
+            bsCall(spot, high, ivShort, tteYears, input.riskFreeRate);
         }
-        return bsPut(spot, high, iv, tteYears, input.riskFreeRate) -
-          bsPut(spot, low, iv, tteYears, input.riskFreeRate);
+        return bsPut(spot, high, ivLong, tteYears, input.riskFreeRate) -
+          bsPut(spot, low, ivShort, tteYears, input.riskFreeRate);
       }
 
       function shortStrikeForDebitSpread(spreadType, strikeA, strikeB) {
@@ -790,12 +799,14 @@
         }
         const touchSpot = shortStrikeForDebitSpread(input.spreadType, input.strikeA, input.strikeB);
         const touchTteYears = touchRemainingDays / 365;
-        const ivs = [
-          Math.max(0.0001, input.iv - input.ivShock),
-          input.iv,
-          input.iv + input.ivShock,
-        ];
-        const prices = ivs.map((iv) => debitSpreadBsPrice(input, touchSpot, touchTteYears, iv));
+        const shocks = [-input.ivShock, 0, input.ivShock];
+        const prices = shocks.map((shock) => debitSpreadBsPrice(
+          input,
+          touchSpot,
+          touchTteYears,
+          Math.max(0.0001, input.ivShort + shock),
+          Math.max(0.0001, input.ivLong + shock)
+        ));
         const sorted = [...prices].sort((a, b) => a - b);
         return [
           { label: "conservative", v: sorted[0] },
@@ -940,7 +951,8 @@
           customN: parseInteger(els.customN.value, "Custom n", { min: 1 }),
           expiry: els.expiry.value,
           touchDate: els.touchDate.value,
-          iv: parseNumber(els.iv.value, "IV", { min: 0.0001 }),
+          ivShort: parseNumber(els.ivShort.value, "IV (short leg)", { min: 0.0001 }),
+          ivLong: parseNumber(els.ivLong.value, "IV (long leg)", { min: 0.0001 }),
           ivShock: parseNumber(els.ivShock.value, "IV shock", { min: 0 }),
           riskFreeRate: parseNumber(els.riskFreeRate.value, "Risk-free rate"),
         };
@@ -1087,7 +1099,8 @@
         els.customN.value = DEFAULTS.customN;
         els.expiry.value = DEFAULTS.expiry;
         els.touchDate.value = DEFAULTS.touchDate;
-        els.iv.value = DEFAULTS.iv;
+        els.ivShort.value = DEFAULTS.ivShort;
+        els.ivLong.value = DEFAULTS.ivLong;
         els.ivShock.value = DEFAULTS.ivShock;
         els.riskFreeRate.value = DEFAULTS.riskFreeRate;
         setSegmented("kalshiSide", DEFAULTS.kalshiSide);
@@ -1111,7 +1124,8 @@
         els.customN,
         els.expiry,
         els.touchDate,
-        els.iv,
+        els.ivShort,
+        els.ivLong,
         els.ivShock,
         els.riskFreeRate,
       ].forEach((input) => {
@@ -1127,7 +1141,7 @@
           const expiryDate = parseDateLocal(input.expiry);
           const holdingDays = daysUntilExpiry(expiryDate);
           const tteYears = holdingDays / 365;
-          const price = debitSpreadBsPrice(input, input.currentSpx, tteYears, input.iv);
+          const price = debitSpreadBsPrice(input, input.currentSpx, tteYears, input.ivShort, input.ivLong);
           els.spreadPrice.value = price.toFixed(2);
           setNotice(els.error, "", true);
           render();
@@ -1163,6 +1177,7 @@
         annualizeRoi,
         bsCall,
         bsPut,
+        debitSpreadBsPrice,
         daysBetweenDates,
         daysUntilExpiry,
         evaluate,
